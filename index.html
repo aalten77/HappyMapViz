@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>D3: Loading GeoJSON data and generating SVG paths</title>
+    <script src="https://d3js.org/d3.v5.min.js"></script>
+    <script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-legend/2.25.6/d3-legend.min.js"></script>
+    <script type="text/javascript" src="lib.js"></script>
+
+    <style type="text/css">
+        /* No style rules here yet */
+        body,html{
+            margin: 0;
+            padding: 0;
+            font-family: "Arial", sans-serif;
+            font-size: 11px;
+            text-align: center;
+        }
+
+        content {
+            display: flex;
+            flex-flow: column;
+            height: 100%;
+        }
+
+        #map {
+            margin: 0;
+            padding: 0;
+            text-align: center;
+        }
+
+        .navigator {
+            margin: 0 auto;
+            list-style: none;
+            display: flex;
+            font-size: 20px;
+            font-family: system-ui;
+        }
+
+        .navigator li {
+            padding: 20px;
+        }
+
+        .navigator li:hover {
+            cursor: pointer;
+            background: #cecece
+        }
+
+        .navigator li.active {
+            background: #cecece
+        }
+
+        #title {
+            padding: 0;
+            margin: 0;
+            text-align: center;
+            height: 50px;
+        }
+
+        .bubble {
+            fill: brown;
+            fill-opacity: .5;
+            stroke: #fff;
+            stroke-width: .5px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="content">
+    <ul class="navigator">
+        <li data-index="0" class="active temp" onclick="switchTopic(this)">Gun Control</li>
+        <li data-index="1" onclick="switchTopic(this)">Intl Women's day</li>
+        <li data-index="2" onclick="switchTopic(this)">MeToo</li>
+        <li data-index="3" onclick="switchTopic(this)">Spring Break</li>
+        <li data-index="4" onclick="switchTopic(this)">Disney World</li>
+        <li data-index="5" onclick="switchTopic(this)">Tariffs</li>
+    </ul>
+    <h1 id="title"></h1>
+    <div id="map"></div>
+
+<script type="text/javascript">
+
+    var dataPaths = [
+        "data/gun control/state/state_polarity.tsv",
+        "data/international women's day/state/state_polarity.tsv",
+        "data/metoo/state/state_polarity.tsv",
+        "data/Spring Break/state/state_polarity.tsv",
+        "data/Disney World/state/state_polarity.tsv",
+        "data/tariffs/state/state_polarity.tsv"
+    ];
+
+    var dataPathsCities = [
+        "data/gun control/cities/cities_polarity.tsv",
+        "data/international women's day/cities/cities_polarity.tsv",
+        "data/metoo/cities/cities_polarity.tsv",
+        "data/Spring Break/cities/cities_polarity.tsv",
+        "data/Disney World/cities/cities_polarity.tsv",
+        "data/tariffs/cities/cities_polarity.tsv"
+    ];
+
+
+    //Width and height
+    var w = 750;
+    var h = 500;
+
+    var margin = {
+        top: 60,
+        bottom: 40,
+        left: 70,
+        right: 40
+    };
+
+    // var width = w - margin.left - margin.right;
+    // var height = h - margin.top - margin.bottom;
+
+
+    // define map projection
+    var projection = d3.geoAlbersUsa()
+        .translate([w/2, h/2])
+        .scale([750]);
+
+    //Define default path generator
+    var path = d3.geoPath()
+        .projection(projection);
+
+    var svg = d3.select("body")
+        .append("svg")
+        .attr("id", "chart")
+        .attr("width", w)
+        .attr("height", h);
+
+    var svg2 = d3.select("body")
+        .append("svg")
+        .attr("id", "chart")
+        .attr("width", w)
+        .attr("height", h);
+        // .append("g")
+        // .attr("transform", "translate(" + margin.left + " " + margin.top + ")");
+
+
+    //color map
+    var color = d3.scaleSequential(d3.interpolateRdYlGn)
+        .domain([-0.33, 0.33]);
+
+    //radius of circle map
+    // var radius = d3.scale.sqrt()
+    //     .domain([0, 1e6])
+    //     .range([0, 15]);
+
+    selectTopic(0);
+
+    function switchTopic(e) {
+        var navs = document.querySelectorAll(".navigator li");
+        navs.forEach(function(nav) {
+            nav.classList.remove('active');
+        });
+        e.classList.add("active");
+
+        selectTopic(parseInt(e.dataset['index']));
+    }
+
+    function selectTopic(id) {
+        svg.selectAll("*").remove();
+        svg2.selectAll("*").remove();
+        drawMaps(id);
+    }
+
+    function drawMaps(id) {
+        d3.json("us-states.json").then(function (unitedStatesGeoJson) {
+            // state polarity
+            d3.tsv(dataPaths[id]).then(function (statePolarity) {
+                var absoluteMaxPolarity = statePolarity.map(function(state) {
+                    return Math.abs(parseFloat(state.Polarity));
+                }).reduce(function(acc, val) {
+                    return Math.max(acc, val);
+                });
+
+                var color = d3.scaleSequential(d3.interpolateRdYlGn)
+                    .domain([-absoluteMaxPolarity, absoluteMaxPolarity]);
+
+                //Merge the agriculture and GeoJSON data
+                //Loop through once for each agriculture data value
+                for (var i = 0; i < statePolarity.length; i++) {
+                    // grab state name
+                    var dataState = statePolarity[i].Location;
+
+                    //grab data value, and convert from string to float
+                    var dataValue = parseFloat(statePolarity[i].Polarity);
+
+                    //find the corresponding state inside the GeoJSON
+                    for (var n = 0; n < unitedStatesGeoJson.features.length; n++) {
+
+                        // properties name gets the states name
+                        var jsonState = unitedStatesGeoJson.features[n].properties.name;
+                        // if statment to merge by name of state
+                        if (dataState == jsonState) {
+                            //Copy the data value into the JSON
+                            // basically creating a new value column in JSON data
+                            unitedStatesGeoJson.features[n].properties.value = dataValue;
+
+                            //stop looking through the JSON
+                            break;
+                        }
+                    }
+                }
+
+                svg.selectAll("path")
+                    .data(unitedStatesGeoJson.features)
+                    .enter()
+                    .append("path")
+                    .attr("d", path)
+                    .style("fill", function (d) {
+                        //get the data value
+                        var value = d.properties.value;
+
+                        if (value) {
+                            //If value exists
+                            return color(value);
+                        } else {
+                            // If value is undefined
+                            //we do this because alaska and hawaii are not in dataset we are using but still in projections
+                            return "#ccc"
+                        }
+
+                    });
+
+                //draw legend
+                var legendSequential = d3.legendColor()
+                    .shapeWidth(30)
+                    .title("Polarity")
+                    .cells(11)
+                    .orient("vertical")
+                    .labelFormat(".02f")
+                    .ascending(true)
+                    .scale(color);
+                svg.append("g")
+                    .attr("transform", "translate(2 10)")
+                    .call(legendSequential);
+            });
+
+            // draw blank map city polarity
+            svg2.selectAll("path")
+                .data(unitedStatesGeoJson.features)
+                .enter()
+                .append("path")
+                .attr("d", path)
+                .style("fill", "#ccc");
+
+            // city polarity
+            Promise.all([
+                d3.tsv(dataPathsCities[id]),
+                d3.tsv("geolocations.tsv").then(function(geolocations) {
+                    return geolocations.reduce(function(acc, val) {
+                        acc[val.location_name] = {
+                            lat: parseFloat(val.lat),
+                            lng: parseFloat(val.long)
+                        };
+                        return acc;
+                    }, {})
+                })
+            ]).then(function ([cityPolarity, geolocationMap]) {
+                var absoluteMaxPolarity = cityPolarity.map(function(city) {
+                    return Math.abs(parseFloat(city.Polarity));
+                }).reduce(function(acc, val) {
+                    return Math.max(acc, val);
+                });
+
+                var color = d3.scaleSequential(d3.interpolateRdYlGn)
+                    .domain([-absoluteMaxPolarity, absoluteMaxPolarity]);
+
+                var cityData = cityPolarity.map(function (city) {
+                    return {
+                        name: city.Location,
+                        lat: geolocationMap[city.Location].lat,
+                        lng: geolocationMap[city.Location].lng,
+                        polarity: parseFloat(city.Polarity)
+                    };
+                });
+
+                svg2.append("g")
+                    .attr("class", "bubble")
+                    .selectAll("circle")
+                    .data(cityData)
+                    .enter()
+                    .append("circle")
+                    .each(function (d) {
+                            var location = projection([d.lng, d.lat]);
+                            d3.select(this)
+                                .attr('cx', location[0])
+                                .attr('cy', location[1])
+                                .attr('r', Math.abs(d.polarity * 100))
+                                .style('fill', color(d.polarity));
+                        }
+                    );
+            });
+        });
+    }
+
+</script>
+</body>
+</html>
