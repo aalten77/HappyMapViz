@@ -4,3 +4,6 @@ An extension of HappyMap project for CS 267 - [https://github.com/aalten77/happy
 
 
 Map Visual: [https://aalten77.github.io/HappyMapViz/](https://aalten77.github.io/HappyMapViz/)
+
+![](guncontrolmap.png)
+![](intlwomendaymap.png)
